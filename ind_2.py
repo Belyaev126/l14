@@ -20,12 +20,13 @@ import sys
 from typing import List
 import xml.etree.ElementTree as ET
 
-class IllegalTimeError(Exception):
+
+class IllegalYearError(Exception):
 
     def __init__(self, year, message="Illegal year (ДД.ММ.ГГГГ)"):
         self.year = year
         self.message = message
-        super(IllegalTimeError, self).__init__(message)
+        super(IllegalYearError, self).__init__(message)
 
     def __str__(self):
         return f"{self.year} -> {self.message}"
@@ -43,7 +44,7 @@ class UnknownCommandError(Exception):
 
 
 @dataclass(frozen=True)
-class people:
+class People:
     surname: str
     name: str
     number: int
@@ -52,11 +53,15 @@ class people:
 
 @dataclass
 class Staff:
-    peoples: List[people] = field(default_factory=lambda: [])
+    peoples: List[People] = field(default_factory=lambda: [])
 
-    def add(self, surname, name, number, year):
+    def add(self, surname, name, number, year) -> None:
+
+        if "." not in number:
+            raise IllegalYearError(year)
+
         self.peoples.append(
-            people(
+            People(
                 surname=surname,
                 name=name,
                 number=number,
@@ -64,7 +69,7 @@ class Staff:
             )
         )
 
-        self.peoples.sort(key=lambda people: people.number)
+        self.peoples.sort(key=lambda peoples: people.number)
 
     def __str__(self):
         table = []
@@ -87,27 +92,28 @@ class Staff:
         )
         table.append(line)
 
-        for idx, people in enumerate(self.peoples, 1):
+        for idx, People in enumerate(self.peoples, 1):
             table.append(
                 '| {:>4} | {:<20} | {:<20} | {:<20} | {:>15} |'.format(
                     idx,
-                    people.get('surname', ''),
-                    people.get('name', ''),
-                    people.get('number', ''),
-                    people.get('year', 0)
+                    people.surname,
+                    people.name,
+                    people.number,
+                    people.year
                 )
             )
+
         table.append(line)
 
         return '\n'.join(table)
 
-    def select(self):
+    def select(self, surname):
         parts = command.split(' ', maxsplit=2)
         sur = (parts[1])
-        count = 0
+        result = []
 
         for people in self.peoples:
-            if people.sur == surname:
+            if people.surname == surname:
                 result.append(people)
 
         return result
@@ -135,18 +141,18 @@ class Staff:
                 if surname is not None and name is not None \
                         and number is not None and year is not None:
                     self.peoples.append(
-                        people(
-                            suname=surname,
+                        People(
+                            surname=surname,
                             name=name,
-                            number=number,
-                            year=year
+                            number=int(number),
+                            year=int(year)
                         )
                     )
 
     def save(self, filename):
         root = ET.Element('peoples')
         for people in self.peoples:
-            people_element = ET.Element('peoples')
+            people_element = ET.Element('people')
 
             surname_element = ET.SubElement(people_element, 'surname')
             surname_element.text = people.surname
@@ -175,7 +181,6 @@ if __name__ == '__main__':
         format='%(asctime)s %(levelname)s:%(message)s'
     )
 
-    peoples = []
     staff = Staff()
     while True:
         try:
@@ -205,23 +210,24 @@ if __name__ == '__main__':
 
             elif command.startswith('select '):
                 parts = command.split(' ', maxsplit=2)
+                selected = staff.select(parts[1])
 
                 if selected:
                     for c, people in enumerate(selected, 1):
                         print(
-                            ('Фамилия:', people.get('surname', '')),
-                            ('Имя:', people.get('name', '')),
-                            ('Номер телефона:', people.get('number', '')),
-                            ('Дата рождения:', people.get('year', ''))
+                            ('Фамилия:', people.surname),
+                            ('Имя:', people.name),
+                            ('Номер телефона:', people.number),
+                            ('Дата рождения:', people.year)
                         )
                     logging.info(
-                        f"Найден человек с фамилией {people.sur}"
+                        f"Найден человек с фамилией {People.surname}"
                     )
 
                 else:
                     print("Таких фамилий нет!")
                     logging.warning(
-                        f"Человек с фамилией {people.sur} не найден."
+                        f"Человек с фамилией {People.surname} не найден."
                     )
 
             elif command.startswith('load '):
