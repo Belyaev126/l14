@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 # -*- config: utf-8 -*-
 
-# Вариант 13. Использовать словарь, содержащий следующие ключи: фамилия, имя; номер телефона;
-# дата рождения. Написать программу, выполняющую следующие
-# действия: ввод с клавиатуры данных в список, состоящий из словарей заданной структуры;
-# записи должны быть упорядочены по трем первым цифрам номера телефона; вывод на
-# экран информации о человеке, чья фамилия введена с клавиатуры; если такого нет, выдать
-# на дисплей соответствующее сообщение.
+# Вариант 2. Использовать словарь, содержащий следующие ключи: фамилия и инициалы; номер
+# группы; успеваемость (список из пяти элементов). Написать программу, выполняющую
+# следующие действия: ввод с клавиатуры данных в список, состоящий из словарей заданной
+# структуры; записи должны быть упорядочены по возрастанию среднего балла; вывод на
+# дисплей фамилий и номеров групп для всех студентов, имеющих оценки 4 и 5; если таких
+# студентов нет, вывести соответствующее сообщение.
 
 # Выполнить индивидуальное задание 2 лабораторной работы 13, добавив возможность работы с
 # исключениями и логгирование.
@@ -21,17 +21,19 @@ from typing import List
 import xml.etree.ElementTree as ET
 
 
-class IllegalYearError(Exception):
+class IllegalMarksError(Exception):
 
-    def __init__(self, year, message="Illegal year (ДД.ММ.ГГГГ)"):
-        self.year = year
+    def __init__(self, marks, message="Illegal year number"):
+        self.marks = marks
         self.message = message
-        super(IllegalYearError, self).__init__(message)
+        super(IllegalMarksError, self).__init__(message)
 
     def __str__(self):
-        return f"{self.year} -> {self.message}"
+        return f"{self.marks} -> {self.message}"
 
 
+# Класс пользовательского исключения в случае, если введенная
+# команда является недопустимой.
 class UnknownCommandError(Exception):
 
     def __init__(self, command, message="Unknown command"):
@@ -44,78 +46,86 @@ class UnknownCommandError(Exception):
 
 
 @dataclass(frozen=True)
-class People:
-    surname: str
+class Person:
     name: str
-    number: int
-    year: int
+    group: str
+    marks: list[int]
 
 
 @dataclass
 class Staff:
-    peoples: List[People] = field(default_factory=lambda: [])
+    students: List[Person] = field(default_factory=lambda: [])
 
-    def add(self, surname, name, number, year) -> None:
-
-        if "." not in number:
-            raise IllegalYearError(year)
-
-        self.peoples.append(
-            People(
-                surname=surname,
+    def add(self, name, group, marks):
+        self.students.append(
+            Person(
                 name=name,
-                number=number,
-                year=year
+                group=group,
+                marks=marks
             )
         )
-
-        self.peoples.sort(key=lambda peoples: people.number)
+        self.students.sort(key=lambda person: person.marks)
 
     def __str__(self):
+        # Заголовок таблицы.
         table = []
-        line = '+-{}-+-{}-+-{}-+-{}-+-{}-+'.format(
+        line = '+-{}-+-{}-+-{}-+-{}-+-{}-+-{}-+-{}-+-{}-+-{}-+'.format(
             '-' * 4,
+            '-' * 30,
             '-' * 20,
-            '-' * 20,
-            '-' * 20,
-            '-' * 15
+            '-' * 8,
+            '-' * 8,
+            '-' * 8,
+            '-' * 8,
+            '-' * 8,
+            '-' * 11
         )
         table.append(line)
         table.append(
-            '| {:^4} | {:^20} | {:^20} | {:^20} | {:^15} |'.format(
+            '| {:^3} | {:^30} | {:^20} | {:^8} | {:^8} | {:^8} | {:^8} | {:^8} |'.format(
                 "№",
-                "Фамилия ",
-                "Имя",
-                "Номер телефона",
-                "Дата рождения"
+                "Ф.И.О.",
+                "Группа",
+                "1-ая оценка",
+                "2-ая оценка",
+                "3-ая оценка",
+                "4-ая оценка",
+                "5-ая оценка"
             )
         )
         table.append(line)
 
-        for idx, People in enumerate(self.peoples, 1):
+        # Вывести данные о всех оценках ученика.
+        for idx, person in enumerate(self.students, 1):
             table.append(
-                '| {:>4} | {:<20} | {:<20} | {:<20} | {:>15} |'.format(
+                '| {:>3} | {:<30} | {:<20} | {:>11} | {:>11} | {:>11} | {:>11} | {:>11} |'.format(
                     idx,
-                    people.surname,
-                    people.name,
-                    people.number,
-                    people.year
+                    person.name,
+                    person.group,
+                    person.marks[0],
+                    person.marks[1],
+                    person.marks[2],
+                    person.marks[3],
+                    person.marks[4]
                 )
             )
-
         table.append(line)
 
         return '\n'.join(table)
 
-    def select(self, surname):
+    def __repr__(self):
+        return self.__str__()
+
+    def select(self, period):
+        # Получить данные студентов, у которых оценки 4 и 5.
         parts = command.split(' ', maxsplit=2)
-        sur = (parts[1])
+        period = int(parts[1])
         result = []
-
-        for people in self.peoples:
-            if people.surname == surname:
-                result.append(people)
-
+        count = 0
+        for person in self.students:
+            if 4 and 5 in person.marks:
+                count += 1
+                result.append(person)
         return result
 
     def load(self, filename):
@@ -123,50 +133,47 @@ class Staff:
             xml = fin.read()
         parser = ET.XMLParser(encoding="utf8")
         tree = ET.fromstring(xml, parser=parser)
-        self.peoples = []
+        self.students = []
 
-        for people_element in tree:
-            surname, name, number, year = None, None, None, None
+        for person_element in tree:
+            name, group, marks = None, None, None
 
-            for element in people_element:
-                if element.tag == 'surname':
-                    surname = element.text
-                elif element.tag == 'name':
+            for element in person_element:
+                if element.tag == 'name':
                     name = element.text
-                elif element.tag == 'number':
-                    number = element.text
-                elif element.tag == 'year':
-                    year = element.text
+                elif element.tag == 'group':
+                    group = element.text
+                elif element.tag == 'marks':
+                    marks = element.text
 
-                if surname is not None and name is not None \
-                        and number is not None and year is not None:
-                    self.peoples.append(
-                        People(
-                            surname=surname,
+                if name is not None and group is not None \
+                        and marks is not None:
+                    self.students.append(
+                        Person(
                             name=name,
-                            number=int(number),
-                            year=int(year)
+                            group=group,
+                            marks=marks
                         )
                     )
 
     def save(self, filename):
-        root = ET.Element('peoples')
-        for people in self.peoples:
-            people_element = ET.Element('people')
+        root = ET.Element('students')
+        for person in self.students:
+            person_element = ET.Element('person')
 
-            surname_element = ET.SubElement(people_element, 'surname')
-            surname_element.text = people.surname
+            name_element = ET.SubElement(person_element, 'name')
+            name_element.text = person.name
 
-            name_element = ET.SubElement(people_element, 'name')
-            name_element.text = people.name
+            group_element = ET.SubElement(person_element, 'group')
+            group_element.text = person.group
 
-            number_element = ET.SubElement(people_element, 'number')
-            number_element.text = str(people.number)
+            marks_element = ET.SubElement(person_element, 'marks')
 
-            year_element = ET.SubElement(people_element, 'year')
-            year_element.text = str(people.year)
+            # Преобразование списка к строке
+            mark = ''.join(str(i) for i in marks)
+            marks_element.text = str(mark)
 
-            root.append(people_element)
+            root.append(person_element)
 
         tree = ET.ElementTree(root)
         with open(filename, 'wb') as fout:
@@ -174,85 +181,90 @@ class Staff:
 
 
 if __name__ == '__main__':
-
+    # Выполнить настройку логгера.
+    # Выполнение пользовательской команды с точностью до миллисекунды.
     logging.basicConfig(
-        filename='peoples.log',
-        level=logging.INFO,
-        format='%(asctime)s %(levelname)s:%(message)s'
+        filename='students_2_individ.log',
+        format='[%(asctime)s] [%(levelname)s] => %(message)s',
+        level=logging.INFO
     )
-
+    # Список учеников.
     staff = Staff()
+
+    # Организовать бесконечный цикл запроса команд.
     while True:
         try:
+            # Запросить команду из терминала.
             command = input(">>> ").lower()
+
+            # Выполнить действие в соответствие с командой.
             if command == 'exit':
                 break
 
-
             elif command == 'add':
-                surname = input("Фамилия ")
-                name = input("Имя ")
-                number = int(input("Номер телефона "))
-                year = input("Дата рождения в формате: дд.мм.гггг ")
-
-                staff.add(surname, name, number, year)
+                # Запросить данные об учениках.
+                n = 5
+                name = input("Введите фамилию и имя: ")
+                group = input("Введите группу: ")
+                marks = list(map(int, input("Введите пять оценок студента, в формате - x y z: ").split(None, n)[:n]))
+                # Добавить учеников.
+                staff.add(name, group, marks)
                 logging.info(
-                    f"Добавлена фамилия: {surname}, "
-                    f"Добавлено имя {name}, "
-                    f"Добавлен номер телефона {number}, "
-                    f"Добавлена дата рождения {year}. "
+                    f"Добавлен студент: {name}, {group}, "
+                    f"получивший оценки {marks} "
                 )
 
-
             elif command == 'list':
+                # Вывести список.
                 print(staff)
-                logging.info("Отображен список людей.")
+                logging.info("Отображен список студентов.")
 
             elif command.startswith('select '):
-                parts = command.split(' ', maxsplit=2)
+                parts = command.split(maxsplit=1)
+                # Запросить учеников.
                 selected = staff.select(parts[1])
-
+                # Вывести результаты запроса.
                 if selected:
-                    for c, people in enumerate(selected, 1):
+                    for count, person in enumerate(selected, 1):
                         print(
-                            ('Фамилия:', people.surname),
-                            ('Имя:', people.name),
-                            ('Номер телефона:', people.number),
-                            ('Дата рождения:', people.year)
+                            '{:>4}: {}'.format(count, person.name)
                         )
                     logging.info(
-                        f"Найден человек с фамилией {People.surname}"
+                        f"Найдено {len(selected)} студентов с "
+                        f"оценкой {parts[1]}."
                     )
-
                 else:
-                    print("Таких фамилий нет!")
-                    logging.warning(
-                        f"Человек с фамилией {People.surname} не найден."
-                    )
+                    print("Нет студентов, у которых оценки 4 и 5")
+                logging.warning(
+                    f"Студенты получившие оценки {parts[1]} не найдены."
+                )
 
             elif command.startswith('load '):
-                parts = command.split(' ', maxsplit=1)
+                # Разбить команду на части для имени файла.
+                parts = command.split(maxsplit=1)
+                # Загрузить данные из файла.
                 staff.load(parts[1])
                 logging.info(f"Загружены данные из файла {parts[1]}.")
 
             elif command.startswith('save '):
-                parts = command.split(' ', maxsplit=1)
+                # Разбить команду на части для имени файла.
+                parts = command.split(maxsplit=1)
+                # Сохранить данные в файл.
                 staff.save(parts[1])
                 logging.info(f"Сохранены данные в файл {parts[1]}.")
 
             elif command == 'help':
-
+                # Вывести справку о работе с программой.
                 print("Список команд:\n")
-                print("add - добавить человека;")
-                print("list - вывести список людей;")
-                print("select <фамилия> - запросить информацию по фамилии;")
-                print("help - отобразить справку;")
+                print("add - добавить студента;")
+                print("list - вывести список студентов;")
                 print("load <имя файла> - загрузить данные из файла;")
                 print("save <имя файла> - сохранить данные в файл;")
+                print("select <оценка> - найти студентов которые получили такую оценку;")
+                print("help - отобразить справку;")
                 print("exit - завершить работу с программой.")
             else:
                 raise UnknownCommandError(command)
-
         except Exception as exc:
             logging.error(f"Ошибка: {exc}")
             print(exc, file=sys.stderr)
